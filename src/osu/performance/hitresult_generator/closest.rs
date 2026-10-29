@@ -2,7 +2,7 @@ use std::cmp;
 
 use crate::{
     any::{
-        HitResultGenerator,
+        HitResultGenerator, HitResultPriority,
         hitresult_generator::{Closest, IgnoreAccuracy},
     },
     osu::{InspectOsuPerformance, Osu, OsuHitResults},
@@ -60,7 +60,13 @@ impl HitResultGenerator<Osu> for Closest {
 
                 let dist = f64::abs(acc - state.accuracy(origin));
 
-                if dist < best_dist {
+                if dist < best_dist
+                    || (dist == best_dist
+                        && match inspect.hitresult_priority {
+                            HitResultPriority::BestCase => new50 < n50,
+                            HitResultPriority::WorstCase => new50 > n50,
+                        })
+                {
                     best_dist = dist;
                     n100 = new100;
                     n50 = new50;
@@ -103,7 +109,13 @@ impl HitResultGenerator<Osu> for Closest {
 
                 let dist = f64::abs(acc - state.accuracy(origin));
 
-                if dist < best_dist {
+                if dist < best_dist
+                    || (dist == best_dist
+                        && match inspect.hitresult_priority {
+                            HitResultPriority::BestCase => new50 < n50,
+                            HitResultPriority::WorstCase => new50 > n50,
+                        })
+                {
                     best_dist = dist;
                     n300 = new300;
                     n50 = new50;
@@ -147,7 +159,13 @@ impl HitResultGenerator<Osu> for Closest {
 
                 let dist = f64::abs(acc - state.accuracy(origin));
 
-                if dist < best_dist {
+                if dist < best_dist
+                    || (dist == best_dist
+                        && match inspect.hitresult_priority {
+                            HitResultPriority::BestCase => new300 > n300,
+                            HitResultPriority::WorstCase => new300 < n300,
+                        })
+                {
                     best_dist = dist;
                     n300 = new300;
                     n100 = new100;
@@ -198,19 +216,11 @@ impl HitResultGenerator<Osu> for Closest {
             // All three missing
             (None, None, None) => {
                 // Deriving bounds on n300:
-                // - Lower bound: minimize n300 by maximizing n50 (n100 = 0)
-                //       target_total = 300*n300 + 100*n100 + 50*n50 + tick_score
-                //   <=> target_total = 300*n300 + 50*(remaing - n300) + tick_score
-                //   <=> target_total - 50*remain - tick_score = 250*n300
-                //   <=> (target_total - 50*remain - tick_score) / 250 = n300
-                let raw_min300 = (target_total - f64::from(50 * remain + tick_score)) / 250.0;
+                // Minimize 300s using 100s; maximize them using 50s.
+                let raw_min300 = (target_total - f64::from(100 * remain + tick_score)) / 200.0;
+                let raw_max300 = (target_total - f64::from(50 * remain + tick_score)) / 250.0;
 
-                // - Upper bound: maximize n300 by minimizing n100 and n50 (both = 0)
-                //       target_total = 300*n300 + 100*n100 + 50*n50 + tick_score
-                //   <=> (target_total - tick_score) / 300 = n300
-                let raw_max300 = (target_total - f64::from(tick_score)) / 300.0;
-
-                let min300 = f64::floor(raw_min300).max(0.0) as u32;
+                let min300 = cmp::min(remain, f64::floor(raw_min300).max(0.0) as u32);
                 // 1+ to account for potential floating point inaccuracies
                 let max300 = cmp::min(remain, 1 + f64::ceil(raw_max300) as u32);
 
@@ -234,7 +244,13 @@ impl HitResultGenerator<Osu> for Closest {
 
                     let dist = f64::abs(acc - hitresults.accuracy(origin));
 
-                    if dist < best_dist {
+                    if dist < best_dist
+                        || (dist == best_dist
+                            && match inspect.hitresult_priority {
+                                HitResultPriority::BestCase => new50 < n50,
+                                HitResultPriority::WorstCase => new50 > n50,
+                            })
+                    {
                         best_dist = dist;
                         n300 = new300;
                         n100 = new100;
